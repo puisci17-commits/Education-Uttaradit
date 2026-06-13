@@ -1,0 +1,6 @@
+{
+  "name": "Education Dashboard and Recorder",
+  "description": "ระบบรายงานแดชบอร์ดข้อมูลจำนวนนักเรียนและบุคลากรทางการศึกษา พร้อมหน้าบันทึกข้อมูลเข้า Google Sheets",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
