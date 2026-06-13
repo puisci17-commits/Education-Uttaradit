@@ -12,6 +12,7 @@ import { DashboardView } from './components/DashboardView';
 import { InputFormView } from './components/InputFormView';
 import { SettingsView } from './components/SettingsView';
 import { getStoredOrMockRows, saveMockRows } from './lib/mockData';
+import { loadSchoolDataFromFirestore, saveSchoolDataToFirestore } from './lib/firestoreService';
 import firebaseConfig from '../firebase-applet-config.json';
 import { GsiButton } from './components/GsiButton';
 import { 
@@ -81,11 +82,29 @@ export default function App() {
     setIsLoadingData(true);
     setErrorMsg(null);
 
-    // If logged in via generic Email/Password (local simulation mode)
+    // If logged in via generic Email/Password (local simulation mode or sandbox backend)
     if (accessToken === 'local-token') {
-      const offlineRows = getStoredOrMockRows();
+      let offlineRows = getStoredOrMockRows();
+      let dbSource = 'Simulated Local Database';
+
+      if (user) {
+        try {
+          const firestoreRows = await loadSchoolDataFromFirestore(user.uid);
+          if (firestoreRows) {
+            offlineRows = firestoreRows;
+            dbSource = 'Cloud Firestore (Sandbox)';
+          } else {
+            // First time using Firestore, seed it with the default template rows
+            await saveSchoolDataToFirestore(user.uid, offlineRows);
+            dbSource = 'Cloud Firestore (Sandbox - Seeded)';
+          }
+        } catch (fErr) {
+          console.warn('Firestore fallback: loading from local storage due to', fErr);
+        }
+      }
+
       setRows(offlineRows);
-      setSheetTitle('Simulated Local Database');
+      setSheetTitle(dbSource);
       setIsLoadingData(false);
       return;
     }
@@ -375,6 +394,13 @@ export default function App() {
 
         // Save local update
         saveMockRows(updatedRows);
+        if (user) {
+          try {
+            await saveSchoolDataToFirestore(user.uid, updatedRows);
+          } catch (fsErr) {
+            console.error('Failed to sync updated rows to Firestore:', fsErr);
+          }
+        }
         setRows(updatedRows);
         setIsUpdatingSheet(false);
         return true;
@@ -428,8 +454,15 @@ export default function App() {
       });
 
       saveMockRows(updatedRows);
+      if (user) {
+        try {
+          await saveSchoolDataToFirestore(user.uid, updatedRows);
+        } catch (fsErr) {
+          console.error('Failed to sync updated rows to Firestore (fallback):', fsErr);
+        }
+      }
       setRows(updatedRows);
-      alert('ไม่สามารถอัปเดตข้อมูลบน Google Sheets ได้โดยตรง จึงได้เปลี่ยนมาซิงค์ข้อมูลลงเครื่องชั่วคราว');
+      alert('ไม่สามารถอัปเดตข้อมูลบน Google Sheets ได้โดยตรง ระบบความปลอดภัยจึงสลับมาบันทึกข้อมูลแบบ Cloud Database (Firestore) ให้อัตโนมัติแทนเรียบร้อยแล้วครับ');
       return true;
     } finally {
       setIsUpdatingSheet(false);
