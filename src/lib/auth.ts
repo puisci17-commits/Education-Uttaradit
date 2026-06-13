@@ -18,7 +18,47 @@ import {
 import { getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
+// Support Vercel Environment Variables with JSON config file fallback
+const metaEnv = (import.meta as any).env || {};
+
+function getEnvValue(envKey: string, fallback: string): string {
+  let val = metaEnv[envKey];
+  if (typeof val !== 'string') return fallback;
+  
+  // Trim outer whitespace
+  val = val.trim();
+  
+  // Strip potential double/single quotes pasted by mistake
+  if (val.startsWith('"') && val.endsWith('"')) {
+    val = val.slice(1, -1).trim();
+  }
+  if (val.startsWith("'") && val.endsWith("'")) {
+    val = val.slice(1, -1).trim();
+  }
+  
+  // If the value is empty, literally "undefined", "null", or equals the key name itself (common mistake)
+  if (!val || val === 'undefined' || val === 'null' || val === envKey || val.startsWith('${')) {
+    return fallback;
+  }
+  return val;
+}
+
+const resolvedConfig = {
+  apiKey: getEnvValue('VITE_FIREBASE_API_KEY', firebaseConfig.apiKey),
+  authDomain: getEnvValue('VITE_FIREBASE_AUTH_DOMAIN', firebaseConfig.authDomain),
+  projectId: getEnvValue('VITE_FIREBASE_PROJECT_ID', firebaseConfig.projectId),
+  storageBucket: getEnvValue('VITE_FIREBASE_STORAGE_BUCKET', firebaseConfig.storageBucket),
+  messagingSenderId: getEnvValue('VITE_FIREBASE_MESSAGING_SENDER_ID', firebaseConfig.messagingSenderId),
+  appId: getEnvValue('VITE_FIREBASE_APP_ID', firebaseConfig.appId),
+  measurementId: getEnvValue('VITE_FIREBASE_MEASUREMENT_ID', firebaseConfig.measurementId) || ""
+};
+
+// Print safe diagnostics to DevTools Console to help the user verify
+console.log('[Firebase Init] Project ID:', resolvedConfig.projectId);
+console.log('[Firebase Init] API Key Prefix:', resolvedConfig.apiKey ? `${resolvedConfig.apiKey.substring(0, 6)}... (Length: ${resolvedConfig.apiKey.length})` : 'MISSING');
+console.log('[Firebase Init] API Key source is:', (metaEnv.VITE_FIREBASE_API_KEY ? 'Vercel Env' : 'Local firebase-applet-config.json'));
+
+const app = initializeApp(resolvedConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
